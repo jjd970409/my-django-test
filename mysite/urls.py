@@ -24,4 +24,5 @@ urlpatterns = [
     # 로그인/로그아웃 URL 추가
     path('login/', auth_views.LoginView.as_view(template_name='hello/login.html'), name='login'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
+    path('', lambda request: redirect('login/', permanent=False)),
 ]
