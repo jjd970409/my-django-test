@@ -17,6 +17,7 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from django.contrib.auth import views as auth_views  # 로그인/로그아웃 뷰 임포트
+from django.shortcuts import redirect
 
 urlpatterns = [
     path('admin/', admin.site.urls),
