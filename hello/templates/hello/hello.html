@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hello Django</title>
+    <style>
+        .error-message { color: red; }
+        .success-message { color: green; }
+    </style>
+</head>
+<body>
+    <h1>Hello, Django Template!</h1>
+    <!-- 로그인/로그아웃 버튼 -->
+    <div style="float:right; margin-top:-40px;">
+        {% if user.is_authenticated %}
+            <span>{{ user.username }} 님</span>
+            <form action="/logout/" method="post" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" style="background:none; border:none; color:blue; text-decoration:underline; cursor:pointer;">로그아웃</button>
+            </form>
+        {% else %}
+            <a href="/login/">로그인</a>
+        {% endif %}
+    </div>
+    <!-- 피드백 메시지(성공/에러) 출력 -->
+    {% if msg_text %}
+        <div class="{% if msg_type == 'error' %}error-message{% else %}success-message{% endif %}">
+            {{ msg_text }}
+        </div>
+    {% endif %}
+    <!-- Django messages 프레임워크 메시지 출력 -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="success-message">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+    <!-- 메시지 입력 폼 -->
+    <form method="post">
+        {% csrf_token %}
+        <input type="text" name="content" placeholder="메시지를 입력하세요" required>
+        <button type="submit">저장</button>
+    </form>
+    <!-- 템플릿에서 파이썬 변수를 출력하는 예시 -->
+    <!-- DB에서 가져온 메시지들을 출력하는 반복문 예시 -->
+    <!-- DB에서 가져온 메시지들을 출력하는 반복문 예시 (message_list 사용) -->
+    <ul>
+        {% for msg in message_list %}
+            <li>
+                {{ msg.content }}
+                <!-- 삭제 버튼(POST 방식) -->
+                <form action="{% url 'delete_message' msg.id %}" method="post" style="display:inline;">
+                    {% csrf_token %}
+                    <button type="submit">삭제</button>
+                </form>
+            </li>
+        {% empty %}
+            <li>메시지가 없습니다.</li>
+        {% endfor %}
+    </ul>
+</body>
+</html>
