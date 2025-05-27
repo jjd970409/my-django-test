@@ -1,11 +1,11 @@
 from django.db import models
+from django.contrib.auth.models import AbstractUser
+from django.utils.translation import gettext_lazy as _
 
-# 메시지를 저장하는 모델
-class Message(models.Model):
-    content = models.CharField(max_length=100)  # 메시지 내용 필드
-
+class User(AbstractUser):
+    nickname = models.CharField(_('닉네임'), max_length=30, unique=True)
+    email_verified = models.BooleanField(_('이메일 인증 여부'), default=False)
+    email_verification_code = models.CharField(_('이메일 인증코드'), max_length=6, null=True, blank=True)
+    
     def __str__(self):
-        # Admin 등에서 객체를 문자열로 볼 때 표시
-        return self.content
-
-# Create your models here.
+        return self.username

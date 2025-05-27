@@ -18,12 +18,20 @@ from django.contrib import admin
 from django.urls import path, include
 from django.contrib.auth import views as auth_views  # 로그인/로그아웃 뷰 임포트
 from django.shortcuts import redirect
+from django.views.generic import RedirectView
+from django.conf import settings
+from django.conf.urls.static import static
+from hello.views import CustomLoginView, SignUpView, send_verification_email, validate_field  # SignUpView 추가
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('hello/', include('hello.urls')),  # hello 앱의 URLConf를 프로젝트에 연결 (hello/로 시작하는 URL 처리)
-    # 로그인/로그아웃 URL 추가
-    path('login/', auth_views.LoginView.as_view(template_name='hello/login.html'), name='login'),
+    path('', RedirectView.as_view(url='/login/', permanent=True)),  # 루트 URL을 /login/으로 리다이렉트
+    path('login/', CustomLoginView.as_view(), name='login'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
-    path('', lambda request: redirect('login/', permanent=False)),
+    path('send-verification-email/', send_verification_email, name='send_verification_email'),
+    path('signup/', SignUpView.as_view(), name='signup'),  # 이 라인 추가
+    path('validate/<str:field_name>/', validate_field, name='validate_field'),
 ]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

@@ -1,0 +1,296 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}회원가입{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="text-center">회원가입</h3>
+                </div>
+                <div class="card-body">
+                    <form method="post" novalidate>
+                        {% csrf_token %}
+                        
+                        <!-- 사용자 이름 -->
+                        <div class="mb-3">
+                            <label for="id_username" class="form-label">아이디</label>
+                            <input type="text" name="username" id="id_username" class="form-control" 
+                                   placeholder="아이디를 입력하세요" required>
+                            <div id="id_username_error" class="invalid-feedback"></div>
+                            <small class="form-text text-muted">
+                                4자 이상의 영문, 숫자, @/./+/-/_ 만 사용 가능합니다.
+                            </small>
+                        </div>
+
+                        <!-- 닉네임 -->
+                        <div class="mb-3">
+                            <label for="id_nickname" class="form-label">닉네임</label>
+                            <input type="text" name="nickname" id="id_nickname" class="form-control" 
+                                   placeholder="사용하실 닉네임을 입력하세요" required>
+                            <div id="id_nickname_error" class="invalid-feedback"></div>
+                        </div>
+
+                        <!-- 이메일 -->
+                        <div class="mb-3">
+                            <label for="id_email" class="form-label">이메일</label>
+                            <div class="input-group">
+                                <input type="email" name="email" id="id_email" class="form-control" 
+                                       placeholder="example@example.com" required>
+                                <button class="btn btn-outline-secondary" type="button" id="send-verification-btn">
+                                    인증번호 전송
+                                </button>
+                            </div>
+                            <div id="id_email_error" class="invalid-feedback"></div>
+                        </div>
+
+                        <!-- 이메일 인증번호 -->
+                        <div class="mb-3" id="verification-section" style="display: none;">
+                            <label for="id_email_verification_code" class="form-label">이메일 인증번호</label>
+                            <div class="input-group">
+                                <input type="text" name="email_verification_code" id="id_email_verification_code" 
+                                       class="form-control" placeholder="이메일로 전송된 인증번호를 입력하세요">
+                            </div>
+                            <div id="id_email_verification_code_error" class="invalid-feedback"></div>
+                        </div>
+
+                        <!-- 비밀번호 -->
+                        <div class="mb-3">
+                            <label for="id_password1" class="form-label">비밀번호</label>
+                            <input type="password" name="password1" id="id_password1" class="form-control" 
+                                   placeholder="비밀번호를 입력하세요" required>
+                            <div id="id_password1_error" class="invalid-feedback"></div>
+                            <small class="form-text text-muted">
+                                8자 이상, 숫자만으로는 설정할 수 없습니다.
+                            </small>
+                        </div>
+
+                        <!-- 비밀번호 확인 -->
+                        <div class="mb-3">
+                            <label for="id_password2" class="form-label">비밀번호 확인</label>
+                            <input type="password" name="password2" id="id_password2" class="form-control" 
+                                   placeholder="비밀번호를 다시 입력하세요" required>
+                            <div id="id_password2_error" class="invalid-feedback"></div>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary">회원가입</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 필드 정의
+    const fields = {
+        'id_username': { 'name': 'username', 'event': 'blur' },
+        'id_email': { 'name': 'email', 'event': 'blur' },
+        'id_nickname': { 'name': 'nickname', 'event': 'blur' },
+        'id_password1': { 'name': 'password1', 'event': 'input' },
+        'id_password2': { 'name': 'password2', 'event': 'blur' }
+    };
+
+    // 이벤트 리스너 등록
+    Object.keys(fields).forEach(fieldId => {
+        const field = document.getElementById(fieldId);
+        if (field) {
+            field.addEventListener(fields[fieldId].event, function() {
+                validateField(field, fields[fieldId].name);
+            });
+        }
+    });
+
+    // 이메일 인증번호 전송
+    const sendVerificationBtn = document.getElementById('send-verification-btn');
+    const verificationSection = document.getElementById('verification-section');
+    
+    if (sendVerificationBtn) {
+        sendVerificationBtn.addEventListener('click', function() {
+            const email = document.getElementById('id_email').value.trim();
+            const emailError = document.getElementById('id_email_error');
+            
+            if (!email) {
+                showError(document.getElementById('id_email'), '이메일을 입력해주세요.');
+                return;
+            }
+            
+            if (!isValidEmail(email)) {
+                showError(document.getElementById('id_email'), '유효한 이메일 주소를 입력해주세요.');
+                return;
+            }
+            
+            sendVerificationBtn.disabled = true;
+            sendVerificationBtn.textContent = '전송 중...';
+            
+            // AJAX 요청으로 인증번호 전송
+            fetch('/send-verification-email/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken'),
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({ email: email })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    showError(document.getElementById('id_email'), data.error);
+                } else {
+                    showSuccess(document.getElementById('id_email'));
+                    verificationSection.style.display = 'block';
+                    // 개발용: 콘솔에 인증번호 출력
+                    console.log('인증번호:', data.verification_code);
+                    alert('인증번호가 전송되었습니다. 이메일을 확인해주세요.');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showError(document.getElementById('id_email'), '인증번호 전송에 실패했습니다.');
+            })
+            .finally(() => {
+                sendVerificationBtn.disabled = false;
+                sendVerificationBtn.textContent = '재전송';
+            });
+        });
+    }
+
+    // 폼 제출 시 최종 검증
+    const form = document.querySelector('form');
+    if (form) {
+        form.addEventListener('submit', function(event) {
+            let isValid = true;
+            
+            // 모든 필드 검증
+            Object.keys(fields).forEach(fieldId => {
+                const field = document.getElementById(fieldId);
+                if (field) {
+                    validateField(field, fields[fieldId].name);
+                    if (field.classList.contains('is-invalid')) {
+                        isValid = false;
+                    }
+                }
+            });
+            
+            if (!isValid) {
+                event.preventDefault();
+                alert('입력하신 정보를 확인해주세요.');
+            }
+        });
+    }
+
+    // 유효성 검사 함수
+    function validateField(field, fieldName) {
+        const value = field.value.trim();
+        const errorElement = document.getElementById(`${field.id}_error`);
+        
+        // 빈 값이면 검사하지 않음
+        if (!value) {
+            if (errorElement) {
+                errorElement.textContent = '';
+            }
+            field.classList.remove('is-valid', 'is-invalid');
+            return;
+        }
+
+        // AJAX 요청으로 유효성 검사
+        fetch(`/validate/${fieldName}/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken'),
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({ value: value })
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (errorElement) {
+                errorElement.textContent = data.valid ? '' : data.message;
+                field.classList.toggle('is-valid', data.valid);
+                field.classList.toggle('is-invalid', !data.valid);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            if (errorElement) {
+                errorElement.textContent = '검증 중 오류가 발생했습니다.';
+                field.classList.add('is-invalid');
+            }
+        });
+    }
+
+    // 유틸리티 함수
+    function showError(field, message) {
+        const errorElement = document.getElementById(`${field.id}_error`);
+        if (errorElement) {
+            errorElement.textContent = message;
+        }
+        field.classList.remove('is-valid');
+        field.classList.add('is-invalid');
+    }
+
+    function showSuccess(field) {
+        const errorElement = document.getElementById(`${field.id}_error`);
+        if (errorElement) {
+            errorElement.textContent = '';
+        }
+        field.classList.remove('is-invalid');
+        field.classList.add('is-valid');
+    }
+
+    function isValidEmail(email) {
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    }
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+});
+</script>
+
+<style>
+    .is-valid {
+        border-color: #28a745 !important;
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3e%3cpath fill='%2328a745' d='M2.3 6.73L.6 4.53c-.4-1.04.46-1.4 1.1-.8l1.1 1.4 3.4-3.8c.6-.63 1.6-.27 1.2.7l-4 4.6c-.43.5-.8.4-1.1.1z'/%3e%3c/svg%3e") !important;
+        background-repeat: no-repeat;
+        background-position: right calc(0.375em + 0.1875rem) center;
+        background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem);
+    }
+    .is-invalid {
+        border-color: #dc3545 !important;
+    }
+    .invalid-feedback {
+        display: block;
+        width: 100%;
+        margin-top: 0.25rem;
+        font-size: 0.875em;
+        color: #dc3545;
+    }
+</style>
+{% endblock %}

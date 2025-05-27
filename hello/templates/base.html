@@ -1,0 +1,67 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>방탈출 리뷰 - {% block title %}{% endblock %}</title>
+    <!-- 부트스트랩 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- 폰트어썸 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            background-image: url('https://images.unsplash.com/photo-1605106702732-9d4ac4aee787?ixlib=rb-4.0.3');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            min-height: 100vh;
+        }
+        .card {
+            border: none;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+            background-color: rgba(255, 255, 255, 0.9);
+        }
+        .card-header {
+            border-bottom: none;
+        }
+        .btn-dark {
+            background-color: #1a1a1a;
+            border: none;
+            padding: 12px;
+            font-weight: 500;
+        }
+        .btn-dark:hover {
+            background-color: #333;
+        }
+        .form-control:focus {
+            border-color: #1a1a1a;
+            box-shadow: 0 0 0 0.25rem rgba(26, 26, 26, 0.25);
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- 네비게이션 바 (추후 추가 예정) -->
+
+    <!-- 메인 컨텐츠 -->
+    <main class="container py-5">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- 푸터 -->
+    <footer class="text-center text-muted py-4">
+        <div class="container">
+            <p class="mb-0">© 2025 방탈출 리뷰. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <!-- 부트스트랩 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

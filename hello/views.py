@@ -1,47 +1,203 @@
 from django.shortcuts import render, redirect
-from django.http import HttpResponse
-from .models import Message  # Message 모델 임포트
+from django.http import HttpResponse, JsonResponse
 from django.contrib import messages  # Django 메시지 프레임워크 사용
 from django.contrib.auth.decorators import login_required  # 로그인 필수 데코레이터
+from django.contrib.auth.views import LoginView
+from .forms import CustomLoginForm
+from django.views.generic import CreateView
+from django.urls import reverse_lazy
+from django.contrib.auth import get_user_model
+from .forms import CustomUserCreationForm
+from .models import User
+import random
+import string
+from django.core.mail import send_mail
+from django.views.decorators.http import require_http_methods
+from django.views.decorators.csrf import csrf_exempt
+import json
+import re
 
-# Create your views here.
-# @login_required: 로그인하지 않은 사용자는 자동으로 /login/ 으로 이동
-@login_required(login_url='/login/')
-def hello_world(request):
-    msg_text = ""
-    msg_type = ""  # 'success' 또는 'error'
-    if request.method == "POST":
-        # 폼에서 입력받은 메시지 내용 가져오기 및 공백 제거
-        content = request.POST.get("content", "").strip()
-        if not content:
-            # 입력값이 비어있을 때
-            msg_text = "메시지를 입력하세요."
-            msg_type = "error"
-        elif len(content) > 100:
-            # 입력값이 100자 초과일 때
-            msg_text = "메시지는 100자 이내로 입력하세요."
-            msg_type = "error"
-        else:
-            # 정상 입력: DB에 새 메시지 저장
-            Message.objects.create(content=content)
-            # Django messages 프레임워크로 성공 메시지 전달
-            messages.success(request, "메시지가 저장되었습니다!")
-            return redirect('hello_world')  # PRG 패턴 적용
-    # DB에서 모든 메시지 조회
-    message_list = Message.objects.all()  # DB 메시지 리스트
-    # 템플릿에 message_list, 피드백 메시지 전달
-    return render(request, 'hello/hello.html', {
-        'message_list': message_list,  # DB 메시지 리스트
-        'msg_text': msg_text,
-        'msg_type': msg_type,
-    })
+class CustomLoginView(LoginView):
+    form_class = CustomLoginForm
+    template_name = 'registration/login.html'
 
-# 메시지 삭제를 처리하는 뷰
-from django.shortcuts import redirect
+class SignUpView(CreateView):
+    form_class = CustomUserCreationForm
+    template_name = 'registration/signup.html'
+    success_url = reverse_lazy('login')
 
-def delete_message(request, msg_id):
-    if request.method == "POST":
-        # msg_id에 해당하는 메시지를 DB에서 삭제
-        Message.objects.filter(id=msg_id).delete()
-    # 삭제 후 메시지 목록 페이지로 리다이렉트
-    return redirect('hello_world')
+    def get(self, request, *args, **kwargs):
+        if request.user.is_authenticated:
+            return redirect('home')  # 로그인한 사용자는 회원가입 페이지 접근 불가
+        return super().get(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        # 인증번호 확인
+        user_code = form.cleaned_data.get('email_verification_code')
+        session_code = self.request.session.get('verification_code')
+        email = form.cleaned_data.get('email')
+        
+        session_email = self.request.session.get('verification_email')
+        if session_email != email:
+            form.add_error('email_verification_code', '이메일 인증을 다시 진행해주세요.')
+            return self.form_invalid(form)
+        
+        if user_code != session_code:
+            form.add_error('email_verification_code', '인증번호가 일치하지 않습니다.')
+            return self.form_invalid(form)
+            
+        # 유저 저장
+        user = form.save(commit=False)
+        user.email_verified = True
+        user.save()
+
+        # 세션 정리
+        if 'verification_code' in self.request.session:
+            del self.request.session['verification_code']
+        if 'verification_email' in self.request.session:
+            del self.request.session['verification_email']
+        
+        messages.success(self.request, '🎉 회원가입이 완료되었습니다! 로그인해주세요.')
+        return super().form_valid(form)
+
+@require_http_methods(["POST"])
+@csrf_exempt
+def send_verification_email(request):
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        try:
+            data = json.loads(request.body)
+            email = data.get('email')
+            
+            if not email:
+                return JsonResponse({'error': '이메일을 입력해주세요.'}, status=400)
+                
+            # 이메일 형식 검증
+            if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', email):
+                return JsonResponse({'error': '유효한 이메일 주소를 입력해주세요.'}, status=400)
+                
+            if get_user_model().objects.filter(email=email).exists():
+                return JsonResponse({'error': '이미 사용 중인 이메일입니다.'}, status=400)
+                
+            # 인증번호 생성 (6자리 숫자)
+            verification_code = ''.join(random.choices(string.digits, k=6))
+            
+            # 세션에 저장 (5분간 유효)
+            request.session['verification_code'] = verification_code
+            request.session['verification_email'] = email
+            request.session.set_expiry(300)  # 5분 후 만료
+            
+            # 이메일 전송 (개발용 콘솔 출력)
+            print(f"이메일 인증번호 ({email}): {verification_code}")
+            
+            # 실제 이메일 전송 (실제 배포 시 사용)
+            # send_mail(
+            #     '[사이트명] 이메일 인증번호',
+            #     f'인증번호: {verification_code}',
+            #     'noreply@yourdomain.com',
+            #     [email],
+            #     fail_silently=False,
+            # )
+            
+            return JsonResponse({
+                'message': '인증번호가 전송되었습니다.',
+                'verification_code': verification_code  # 개발용으로 임시로 코드 반환
+            })
+            
+        except Exception as e:
+            return JsonResponse({'error': '서버 오류가 발생했습니다.'}, status=500)
+            
+    return JsonResponse({'error': '잘못된 요청입니다.'}, status=400)
+
+
+@require_http_methods(["POST"])
+@csrf_exempt
+def validate_field(request, field_name):
+
+    print(f"\n=== New Validation Request ===")
+    print(f"Request Method: {request.method}")
+    print(f"Content-Type: {request.content_type}")
+    print(f"Request Body: {request.body}")  # 요청 본문 출력
+
+    try:
+        print(f"Validating field: {field_name}")  # 디버깅용 로그
+        data = json.loads(request.body)
+        value = data.get('value', '').strip()
+        response_data = {'valid': True, 'message': ''}
+        User = get_user_model()  # User 모델 미리 가져오기
+
+        print(f"Field: {field_name}, Value: {value}")  # 디버깅용 로그
+
+        if field_name == 'username':
+            if len(value) < 4:
+                response_data.update({
+                    'valid': False,
+                    'message': '아이디는 4자 이상이어야 합니다.'
+                })
+            elif not re.match(r'^[a-zA-Z][\w.@+-]+\Z', value):
+                response_data.update({
+                    'valid': False,
+                    'message': '영문자로 시작하고, 영문/숫자/일부 특수문자만 사용 가능합니다.'
+                })
+            elif get_user_model().objects.filter(username=value).exists():
+                response_data.update({
+                    'valid': False,
+                    'message': '이미 사용 중인 아이디입니다.'
+                })
+
+        elif field_name == 'email':
+            if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', value):
+                response_data.update({
+                    'valid': False,
+                    'message': '유효한 이메일 주소를 입력해주세요.'
+                })
+            elif get_user_model().objects.filter(email=value).exists():
+                response_data.update({
+                    'valid': False,
+                    'message': '이미 사용 중인 이메일입니다.'
+                })
+
+        elif field_name == 'nickname':
+            if len(value) < 2:
+                response_data.update({
+                    'valid': False,
+                    'message': '닉네임은 2자 이상이어야 합니다.'
+                })
+            elif not re.match(r'^[가-힣a-zA-Z0-9\s]+$', value):
+                response_data.update({
+                    'valid': False,
+                    'message': '한글, 영문, 숫자만 사용 가능합니다.'
+                })
+
+        elif field_name == 'password1':
+            if len(value) < 8:
+                response_data.update({
+                    'valid': False,
+                    'message': '비밀번호는 8자 이상이어야 합니다.'
+                })
+            elif value.isdigit():
+                response_data.update({
+                    'valid': False,
+                    'message': '숫자만으로는 비밀번호를 설정할 수 없습니다.'
+                })
+
+        print(f"Validation result: {response_data}")  # 디버깅용 로그
+        return JsonResponse(response_data)
+
+    except json.JSONDecodeError as e:
+        print(f"JSON decode error: {e}")  # 디버깅용 로그
+        return JsonResponse({
+            'valid': False,
+            'message': '잘못된 요청 형식입니다.'
+        }, status=400)
+    except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"\n=== ERROR ===")
+        print(f"Error type: {type(e).__name__}")
+        print(f"Error message: {str(e)}")
+        print(f"Traceback:\n{error_trace}")
+        print("=============\n")
+        return JsonResponse({
+            'valid': False,
+            'message': f'검증 중 오류가 발생했습니다: {str(e)}'
+        }, status=500)
