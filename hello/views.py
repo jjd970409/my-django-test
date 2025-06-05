@@ -8,6 +8,8 @@ from django.views.generic import CreateView
 from django.urls import reverse_lazy
 from django.contrib.auth import get_user_model
 from .forms import CustomUserCreationForm
+from django.views.decorators.http import require_POST
+from django.views.decorators.csrf import csrf_exempt
 from .models import User
 import random
 import string
@@ -17,9 +19,21 @@ from django.views.decorators.csrf import csrf_exempt
 import json
 import re
 
+@login_required
+def home(request):
+    return render(request, 'hello/home.html')  
+
 class CustomLoginView(LoginView):
     form_class = CustomLoginForm
     template_name = 'registration/login.html'
+    
+    def form_valid(self, form):
+        """로그인 성공 시 세션 갱신"""
+        response = super().form_valid(form)
+        if self.request.user.is_authenticated:
+            # 세션 갱신
+            self.request.session.cycle_key()
+        return response
 
 class SignUpView(CreateView):
     form_class = CustomUserCreationForm
@@ -30,6 +44,12 @@ class SignUpView(CreateView):
         if request.user.is_authenticated:
             return redirect('home')  # 로그인한 사용자는 회원가입 페이지 접근 불가
         return super().get(request, *args, **kwargs)
+
+    def form_invalid(self, form):
+        """폼 검증 실패 시 입력값 유지"""
+        for field in form.errors:
+            form[field].field.widget.attrs['class'] = 'form-control is-invalid'
+        return self.render_to_response(self.get_context_data(form=form))
 
     def form_valid(self, form):
         # 인증번호 확인
@@ -201,3 +221,38 @@ def validate_field(request, field_name):
             'valid': False,
             'message': f'검증 중 오류가 발생했습니다: {str(e)}'
         }, status=500)
+
+@require_POST
+@csrf_exempt # 실제 프로덕션에서는 CSRF 토큰을 제대로 처리해야 합니다.
+def verify_email_code(request):
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        try:
+            data = json.loads(request.body)
+            entered_code = data.get('code')
+            email = data.get('email') # 인증 시도하는 이메일도 함께 받음
+
+            session_code = request.session.get('verification_code')
+            session_email = request.session.get('verification_email')
+
+            if not entered_code:
+                return JsonResponse({'valid': False, 'message': '인증번호를 입력해주세요.'}, status=400)
+
+            if session_email != email:
+                # 이메일이 변경된 경우, 이전 인증 코드는 무효화
+                return JsonResponse({'valid': False, 'message': '이메일 정보가 변경되었습니다. 다시 인증번호를 전송해주세요.'}, status=400)
+
+            if session_code == entered_code:
+                # 인증 성공 시, 세션에 인증 완료 상태 저장 (선택 사항)
+                request.session['email_verified_for_signup'] = True
+                request.session['verified_email_for_signup'] = email # 어떤 이메일로 인증했는지 저장
+                return JsonResponse({'valid': True, 'message': '인증번호가 확인되었습니다.'})
+            else:
+                return JsonResponse({'valid': False, 'message': '인증번호가 일치하지 않습니다.'})
+
+        except json.JSONDecodeError:
+            return JsonResponse({'valid': False, 'message': '잘못된 요청 형식입니다.'}, status=400)
+        except Exception as e:
+            # 로깅 추가 권장
+            print(f"Error in verify_email_code: {e}")
+            return JsonResponse({'valid': False, 'message': '서버 오류가 발생했습니다.'}, status=500)
+    return JsonResponse({'valid': False, 'message': '잘못된 접근입니다.'}, status=403)       

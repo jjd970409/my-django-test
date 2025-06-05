@@ -12,7 +12,7 @@
                     <h3 class="text-center">회원가입</h3>
                 </div>
                 <div class="card-body">
-                    <form method="post" novalidate>
+                    <form method="post" id="signup-form" novalidate>
                         {% csrf_token %}
                         
                         <!-- 사용자 이름 -->
@@ -53,7 +53,10 @@
                             <div class="input-group">
                                 <input type="text" name="email_verification_code" id="id_email_verification_code" 
                                        class="form-control" placeholder="이메일로 전송된 인증번호를 입력하세요">
+                                <button class="btn btn-outline-primary" type="button" id="verify-code-btn">인증번호 확인</button>
                             </div>
+                            <div id="id_email_verification_code_status" class="mt-1"></div>
+                            <input type="hidden" name="email_verification_code" id="id_email_verification_code_hidden">
                             <div id="id_email_verification_code_error" class="invalid-feedback"></div>
                         </div>
 
@@ -99,6 +102,12 @@ document.addEventListener('DOMContentLoaded', function() {
         'id_password2': { 'name': 'password2', 'event': 'blur' }
     };
 
+    const verificationCodeInput = document.getElementById('id_email_verification_code_input'); // 입력 필드 ID 변경
+    const verifyCodeBtn = document.getElementById('verify-code-btn');
+    const verificationCodeStatus = document.getElementById('id_email_verification_code_status');
+    const verificationCodeHidden = document.getElementById('id_email_verification_code_hidden'); // 숨겨진 필드
+    const emailInput = document.getElementById('id_email'); // 이메일 입력 필드
+
     // 이벤트 리스너 등록
     Object.keys(fields).forEach(fieldId => {
         const field = document.getElementById(fieldId);
@@ -113,6 +122,56 @@ document.addEventListener('DOMContentLoaded', function() {
     const sendVerificationBtn = document.getElementById('send-verification-btn');
     const verificationSection = document.getElementById('verification-section');
     
+    if (verifyCodeBtn) {
+        verifyCodeBtn.addEventListener('click', function() {
+            const code = verificationCodeInput.value.trim();
+            const currentEmail = emailInput.value.trim(); // 현재 이메일 필드의 값
+
+            if (!code) {
+                verificationCodeStatus.textContent = '인증번호를 입력해주세요.';
+                verificationCodeStatus.className = 'text-danger mt-1';
+                return;
+            }
+            if (!currentEmail) {
+                // 이 경우는 거의 없겠지만, 방어적으로 추가
+                alert('이메일 주소를 먼저 입력하고 인증번호를 전송해주세요.');
+                return;
+            }
+
+            fetch("{% url 'verify_email_code' %}", { // URL 템플릿 태그 사용
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({ code: code, email: currentEmail }) // 현재 이메일도 함께 전송
+            })
+            .then(response => response.json())
+            .then(data => {
+                verificationCodeStatus.textContent = data.message;
+                if (data.valid) {
+                    verificationCodeStatus.className = 'text-success mt-1';
+                    verificationCodeInput.disabled = true; // 인증 성공 시 입력 필드 비활성화
+                    verifyCodeBtn.disabled = true; // 인증 성공 시 버튼 비활성화
+                    sendVerificationBtn.disabled = true; // 인증 성공 시 재전송 버튼 비활성화
+                    emailInput.disabled = true; // 인증 성공 시 이메일 필드 비활성화
+                    // 인증 성공 시 숨겨진 필드에 인증 코드 저장 (폼 제출용)
+                    verificationCodeHidden.value = code;
+                } else {
+                    verificationCodeStatus.className = 'text-danger mt-1';
+                    verificationCodeHidden.value = ''; // 인증 실패 시 숨겨진 필드 초기화
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                verificationCodeStatus.textContent = '오류가 발생했습니다. 다시 시도해주세요.';
+                verificationCodeStatus.className = 'text-danger mt-1';
+                verificationCodeHidden.value = '';
+            });
+        });
+    }
+
     if (sendVerificationBtn) {
         sendVerificationBtn.addEventListener('click', function() {
             const email = document.getElementById('id_email').value.trim();

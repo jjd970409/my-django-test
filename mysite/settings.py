@@ -136,7 +136,7 @@ STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # 로그인/로그아웃 후 리다이렉트 경로
-LOGIN_REDIRECT_URL = 'home'  # 홈 화면 URL 이름
+LOGIN_REDIRECT_URL = 'hello:home'  # 홈 화면 URL 이름
 LOGOUT_REDIRECT_URL = 'login'
 LOGIN_URL = 'login'
 
@@ -161,3 +161,9 @@ MESSAGE_TAGS = {
     messages.WARNING: 'alert-warning',
     messages.INFO: 'alert-info',
 }
+
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # 기본값
+SESSION_COOKIE_AGE = 1209600  # 2주 (초 단위)
+SESSION_COOKIE_SECURE = False  # 개발 시에는 False, 배포 시에는 True로 변경
+SESSION_COOKIE_HTTPONLY = True
+SESSION_SAVE_EVERY_REQUEST = True  # 매 요청마다 세션 저장

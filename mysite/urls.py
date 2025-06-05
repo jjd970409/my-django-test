@@ -21,16 +21,17 @@ from django.shortcuts import redirect
 from django.views.generic import RedirectView
 from django.conf import settings
 from django.conf.urls.static import static
-from hello.views import CustomLoginView, SignUpView, send_verification_email, validate_field  # SignUpView 추가
+from hello.views import CustomLoginView, SignUpView, send_verification_email, validate_field, verify_email_code  # SignUpView 추가
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('', RedirectView.as_view(url='/login/', permanent=True)),  # 루트 URL을 /login/으로 리다이렉트
+    path('', include('hello.urls')),  # 루트 URL을 /login/으로 리다이렉트
     path('login/', CustomLoginView.as_view(), name='login'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
     path('send-verification-email/', send_verification_email, name='send_verification_email'),
-    path('signup/', SignUpView.as_view(), name='signup'),  # 이 라인 추가
+    path('signup/', SignUpView.as_view(), name='signup'),  
     path('validate/<str:field_name>/', validate_field, name='validate_field'),
+    path('verify-email-code/', verify_email_code, name='verify_email_code'), 
 ]
 
 if settings.DEBUG:
